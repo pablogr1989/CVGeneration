@@ -2,28 +2,24 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: file:;">
-    <title>CV Designer - Editor</title>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' file: data:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: file:;">
+    <title>CV Generation</title>
+    <script>
+        window.onerror = function(message, source, lineno, colno, error) {
+            window.api.sendLog('ERROR', 'Fallo en Renderer (Global)', { message, lineno, colno });
+        };
+    </script>
     <style>
         body { display: flex; flex-direction: column; height: 100vh; margin: 0; font-family: 'Montserrat', sans-serif; background: #1e1e1e; color: white; overflow: hidden; }
         .controls { padding: 12px 20px; background: #2d2d2d; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #3e3e3e; }
         .app-container { display: flex; flex: 1; overflow: hidden; }
         .editor-side { flex: 1; display: flex; flex-direction: column; padding: 15px; border-right: 1px solid #3c3c3c; }
         .preview-side { flex: 1; display: flex; flex-direction: column; padding: 15px; background: #252526; }
-        
         textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; resize: none; outline: none; border-radius: 4px; }
-        
-        #errorLog { 
-            height: 120px; margin-top: 10px; background: #2d1010; color: #ff8888; 
-            padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; border-radius: 4px; 
-            overflow-y: auto; display: none; border: 1px solid #551a1a; line-height: 1.4;
-        }
-
+        #errorLog { height: 120px; margin-top: 10px; background: #2d1010; color: #ff8888; padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; border-radius: 4px; overflow-y: auto; display: none; border: 1px solid #551a1a; line-height: 1.4; }
         iframe { flex: 1; background: white; border: none; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
-        
         button, select { padding: 8px 12px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; }
         select { background: #3e3e3e; color: white; outline: none; }
-        .btn-preview { background: #6c757d; color: white; }
         .btn-save { background: #007acc; color: white; }
         .btn-pdf { background: #28a745; color: white; }
         .btn-open { background: #ffc107; color: #212529; display: none; }
@@ -35,17 +31,17 @@
 <body>
     <div class="controls">
         <select id="templateSelect" onchange="updatePreview()">
-            <option value="classic">Diseño Clásico</option>
-            <option value="modern">Diseño Moderno</option>
+            <option value="classic">Clásico</option>
+            <option value="modern">Moderno</option>
         </select>
-        <button class="btn-save" onclick="save()">Guardar cv.md</button>
+        <button class="btn-save" onclick="save()">Guardar</button>
         <button class="btn-pdf" onclick="generate()">Generar PDF</button>
         <button id="btnOpen" class="btn-open" onclick="openPdf()">Abrir PDF</button>
-        <span id="status">Listo</span>
+        <span id="status">Iniciando...</span>
     </div>
     <div class="app-container">
         <div class="editor-side">
-            <textarea id="editor" placeholder="Escribe tu CV en Markdown aquí..."></textarea>
+            <textarea id="editor"></textarea>
             <div id="errorLog"></div>
         </div>
         <div class="preview-side">
@@ -69,67 +65,74 @@
         }
 
         window.onload = async () => {
-            const content = await window.api.loadCV();
-            editor.value = content;
-            updatePreview();
+            try {
+                const content = await window.api.loadCV();
+                editor.value = content;
+                updatePreview();
+                status.innerText = "Listo";
+            } catch (e) {
+                window.api.sendLog('ERROR', 'Error cargando datos iniciales', { error: e.message });
+            }
         };
 
-        editor.addEventListener('input', debounce(() => {
-            updatePreview();
-        }));
+        editor.addEventListener('input', debounce(() => updatePreview()));
 
         async function updatePreview() {
-            status.innerText = "⏳ Procesando...";
-            status.className = "";
-            errorLog.style.display = "none";
-            
             const template = templateSelect.value;
             const result = await window.api.renderPreview(editor.value, template);
             
             if (result.success) {
                 let html = result.html;
-                const baseDir = window.location.href.replace('src/renderer/index.html', '');
-                
-                // CAMBIO CRÍTICO: El base ahora apunta a la carpeta específica de la plantilla
-                const headWithBase = `<head><base href="${baseDir}templates/${template}/">`;
-                html = html.replace('<head>', headWithBase);
+                let currentUrl = window.location.href;
+                let resourceBase = currentUrl.includes('app.asar') 
+                    ? currentUrl.split('app.asar')[0] 
+                    : currentUrl.replace('src/renderer/index.html', '');
 
-                html = html.replace(/src="profile\.(.*?)"/g, `src="${baseDir}assets/profile.$1"`);
+                const headWithBase = `<head><base href="${resourceBase}templates/${template}/">`;
+                html = html.replace('<head>', headWithBase);
+                html = html.replace(/src="profile\.(.*?)"/g, `src="${resourceBase}assets/profile.$1"`);
 
                 preview.srcdoc = html;
-                status.innerText = "✅ Vista previa actualizada (" + template + ")";
-                status.classList.add('status-ok');
+                status.innerText = "✅ Actualizado";
             } else {
                 status.innerText = "❌ Error";
-                status.classList.add('status-error');
-                errorLog.innerText = "ERRORES DETECTADOS:\n" + result.error.split(', ').join('\n• ');
+                errorLog.innerText = result.error;
                 errorLog.style.display = "block";
             }
         }
 
         async function save() {
-            status.innerText = "Guardando...";
             await window.api.saveCV(editor.value);
-            status.innerText = "Archivo cv.md guardado";
+            status.innerText = "Guardado";
         }
 
-        async function generate() { 
-            status.innerText = "Generando PDF...";
+        async function generate() {
+            status.innerText = "Generando...";
             try {
                 const template = templateSelect.value;
                 const path = await window.api.generatePDF(editor.value, template);
                 window.lastPath = path;
                 document.getElementById('btnOpen').style.display = 'block';
-                status.innerText = "PDF creado (" + template + ")";
-                status.classList.add('status-ok');
-            } catch (err) {
-                status.innerText = "Error al generar PDF";
-                status.classList.add('status-error');
-                console.error(err);
+                status.innerText = "PDF Generado";
+            } catch (e) {
+                window.api.sendLog('ERROR', 'Fallo al generar PDF', { error: e.message });
+                status.innerText = "Error PDF";
             }
         }
 
-        function openPdf() { window.api.openPDF(window.lastPath); }
+        // MEJORA: Función asíncrona para capturar errores de apertura
+        async function openPdf() { 
+            if (!window.lastPath) {
+                status.innerText = "Ruta no encontrada";
+                return;
+            }
+            const error = await window.api.openPDF(window.lastPath); 
+            if (error) {
+                window.api.sendLog('ERROR', 'No se pudo abrir el PDF', { error, path: window.lastPath });
+                status.innerText = "Error al abrir";
+                alert("No se pudo abrir el PDF: " + error);
+            }
+        }
     </script>
 </body>
 </html>

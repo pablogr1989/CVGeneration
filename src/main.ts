@@ -3,36 +3,36 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGeneration, getRenderedHtml } from './index.js';
+import { Logger } from './core/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const projectRoot = path.resolve(__dirname, '..');
-const cvPath = path.join(projectRoot, 'data', 'cv.md');
+
+const isDev = !app.isPackaged;
+const externalPath = isDev ? path.resolve(__dirname, '..') : process.resourcesPath;
+const appPath = isDev ? path.resolve(__dirname, '..') : path.resolve(__dirname, '..');
+
+const logger = new Logger(externalPath);
+logger.info('=== INICIO DE APLICACIÓN ===');
+
+const cvPath = path.join(externalPath, 'data', 'cv.md');
+
+process.on('uncaughtException', (err) => {
+  logger.error('CRITICAL: Uncaught Exception en Main', { message: err.message, stack: err.stack });
+});
 
 function ensureDataFile() {
-  const dataDir = path.dirname(cvPath);
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-
-  if (!fs.existsSync(cvPath)) {
-    const defaultContent = `---
-basics:
-  name: "Tu Nombre Completo"
-  label: "Tu Profesión"
-  email: "tu@email.com"
-  phone: "+34 600 000 000"
-  location: "Madrid, España"
-  summary: "Escribe aquí tu perfil profesional..."
-work: []
-education: []
-skills: []
-languages: []
----
-# Tu CV
-Empieza a editar aquí.
-`;
-    fs.writeFileSync(cvPath, defaultContent, 'utf-8');
+  try {
+    const dataDir = path.dirname(cvPath);
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+    if (!fs.existsSync(cvPath)) {
+      const defaultContent = `---\nbasics:\n  name: "Edita tu nombre"\n---\n# CV`;
+      fs.writeFileSync(cvPath, defaultContent, 'utf-8');
+    }
+  } catch (err: any) {
+    logger.error('Error en ensureDataFile', err.message);
   }
 }
 
@@ -44,21 +44,56 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false
     },
-    title: "CV Generator"
+    title: "CV Generation"
   });
-  win.loadFile(path.join(projectRoot, 'src/renderer/index.html'));
+
+  const htmlPath = path.join(appPath, 'src', 'renderer', 'index.html');
+  win.loadFile(htmlPath).catch(err => {
+    logger.error('Error al ejecutar win.loadFile', err.message);
+  });
 }
+
+ipcMain.on('log-from-renderer', (event, { level, message, data }) => {
+  if (level === 'ERROR') logger.error(`[Renderer] ${message}`, data);
+  else logger.info(`[Renderer] ${message}`, data);
+});
 
 ipcMain.handle('load-cv', () => fs.readFileSync(cvPath, 'utf-8'));
 ipcMain.handle('save-cv', (_, content) => fs.writeFileSync(cvPath, content, 'utf-8'));
-ipcMain.handle('generate-pdf', (_, content, templateName) => runGeneration(content, templateName));
-ipcMain.handle('open-pdf', (_, p) => shell.openPath(p));
+
+ipcMain.handle('generate-pdf', (_, content, templateName) => {
+  return runGeneration(content, templateName, externalPath);
+});
+
+// MEJORA: Manejador de apertura de PDF con Logging detallado
+ipcMain.handle('open-pdf', async (_, p) => {
+  logger.info('Solicitud de apertura de PDF:', p);
+  
+  if (!p || !fs.existsSync(p)) {
+    const errorMsg = `La ruta del archivo no es válida o el archivo no existe: ${p}`;
+    logger.error(errorMsg);
+    return errorMsg;
+  }
+
+  try {
+    const result = await shell.openPath(p);
+    if (result) {
+      logger.error('Shell.openPath devolvió un error:', result);
+      return result;
+    }
+    logger.info('PDF abierto correctamente por el sistema operativo.');
+    return '';
+  } catch (err: any) {
+    logger.error('Excepción al intentar abrir el PDF:', err.message);
+    return err.message;
+  }
+});
 
 ipcMain.handle('render-preview', async (_, content, templateName) => {
   try {
-    const html = await getRenderedHtml(content, templateName);
-    return { success: true, html };
+    return { success: true, html: await getRenderedHtml(content, templateName, externalPath) };
   } catch (err: any) {
+    logger.error('Error en render-preview', err.message);
     return { success: false, error: err.message };
   }
 });

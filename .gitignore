@@ -9,3 +9,5 @@ npm-debug.log*
 output/
 *.code-workspace
 dist/
+dist-installer/
+Portable/
