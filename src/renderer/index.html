@@ -13,27 +13,32 @@
         
         textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; resize: none; outline: none; border-radius: 4px; }
         
-        /* Consola de Errores */
         #errorLog { 
-            height: 100px; margin-top: 10px; background: #2d1010; color: #ff8888; 
-            padding: 10px; font-family: monospace; font-size: 12px; border-radius: 4px; 
-            overflow-y: auto; display: none; border: 1px solid #551a1a;
+            height: 120px; margin-top: 10px; background: #2d1010; color: #ff8888; 
+            padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; border-radius: 4px; 
+            overflow-y: auto; display: none; border: 1px solid #551a1a; line-height: 1.4;
         }
 
         iframe { flex: 1; background: white; border: none; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
         
-        button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+        button, select { padding: 8px 12px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; }
+        select { background: #3e3e3e; color: white; outline: none; }
         .btn-preview { background: #6c757d; color: white; }
         .btn-save { background: #007acc; color: white; }
         .btn-pdf { background: #28a745; color: white; }
         .btn-open { background: #ffc107; color: #212529; display: none; }
-        #status { font-size: 12px; color: #adb5bd; margin-left: auto; }
+        #status { font-size: 12px; color: #adb5bd; margin-left: auto; padding: 4px 8px; border-radius: 3px; }
+        .status-ok { background: #1e4620; color: #a5d6a7 !important; }
+        .status-error { background: #4e1d1d; color: #ef9a9a !important; }
     </style>
 </head>
 <body>
     <div class="controls">
+        <select id="templateSelect" onchange="updatePreview()">
+            <option value="classic">Diseño Clásico</option>
+            <option value="modern">Diseño Moderno</option>
+        </select>
         <button class="btn-save" onclick="save()">Guardar cv.md</button>
-        <button class="btn-preview" onclick="updatePreview()">Actualizar Vista Previa</button>
         <button class="btn-pdf" onclick="generate()">Generar PDF</button>
         <button id="btnOpen" class="btn-open" onclick="openPdf()">Abrir PDF</button>
         <span id="status">Listo</span>
@@ -53,6 +58,15 @@
         const preview = document.getElementById('preview');
         const status = document.getElementById('status');
         const errorLog = document.getElementById('errorLog');
+        const templateSelect = document.getElementById('templateSelect');
+
+        function debounce(func, timeout = 500) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => { func.apply(this, args); }, timeout);
+            };
+        }
 
         window.onload = async () => {
             const content = await window.api.loadCV();
@@ -60,32 +74,36 @@
             updatePreview();
         };
 
+        editor.addEventListener('input', debounce(() => {
+            updatePreview();
+        }));
+
         async function updatePreview() {
-            status.innerText = "Procesando...";
+            status.innerText = "⏳ Procesando...";
+            status.className = "";
             errorLog.style.display = "none";
             
-            const result = await window.api.renderPreview(editor.value);
+            const template = templateSelect.value;
+            const result = await window.api.renderPreview(editor.value, template);
             
             if (result.success) {
                 let html = result.html;
-                // Calculamos la ruta absoluta a la carpeta de plantillas
                 const baseDir = window.location.href.replace('src/renderer/index.html', '');
                 
-                // Inyectamos la etiqueta <base> para que el iframe encuentre styles.css
-                const headWithBase = `<head><base href="${baseDir}templates/">`;
+                // CAMBIO CRÍTICO: El base ahora apunta a la carpeta específica de la plantilla
+                const headWithBase = `<head><base href="${baseDir}templates/${template}/">`;
                 html = html.replace('<head>', headWithBase);
 
-                // Corregimos la ruta de la imagen de perfil para que apunte a assets
                 html = html.replace(/src="profile\.(.*?)"/g, `src="${baseDir}assets/profile.$1"`);
 
-                // Inyectamos el HTML final en el iframe
                 preview.srcdoc = html;
-                status.innerText = "Vista previa actualizada";
+                status.innerText = "✅ Vista previa actualizada (" + template + ")";
+                status.classList.add('status-ok');
             } else {
-                status.innerText = "Error en el formato";
-                errorLog.innerText = "ERROR TÉCNICO:\n" + result.error;
+                status.innerText = "❌ Error";
+                status.classList.add('status-error');
+                errorLog.innerText = "ERRORES DETECTADOS:\n" + result.error.split(', ').join('\n• ');
                 errorLog.style.display = "block";
-                preview.srcdoc = "<html><body style='font-family:sans-serif; padding:20px; color:red;'><h3>Error de Formato</h3><p>Revisa el panel inferior.</p></body></html>";
             }
         }
 
@@ -98,12 +116,15 @@
         async function generate() { 
             status.innerText = "Generando PDF...";
             try {
-                const path = await window.api.generatePDF();
+                const template = templateSelect.value;
+                const path = await window.api.generatePDF(editor.value, template);
                 window.lastPath = path;
                 document.getElementById('btnOpen').style.display = 'block';
-                status.innerText = "PDF creado exitosamente";
+                status.innerText = "PDF creado (" + template + ")";
+                status.classList.add('status-ok');
             } catch (err) {
                 status.innerText = "Error al generar PDF";
+                status.classList.add('status-error');
                 console.error(err);
             }
         }

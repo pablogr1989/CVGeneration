@@ -3,7 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   loadCV: () => ipcRenderer.invoke('load-cv'),
   saveCV: (content: string) => ipcRenderer.invoke('save-cv', content),
-  generatePDF: () => ipcRenderer.invoke('generate-pdf'),
+  generatePDF: (content: string, templateName: string) => ipcRenderer.invoke('generate-pdf', content, templateName),
   openPDF: (path: string) => ipcRenderer.invoke('open-pdf', path),
-  renderPreview: (content: string) => ipcRenderer.invoke('render-preview', content)
+  renderPreview: (content: string, templateName: string) => ipcRenderer.invoke('render-preview', content, templateName)
 });

@@ -2,11 +2,11 @@ import fs from 'node:fs/promises';
 import matter from 'gray-matter';
 import { remark } from 'remark';
 import html from 'remark-html';
-import { Resume } from '../types/resume.js';
+import { Resume, ResumeSchema } from '../types/resume.js';
 
 /**
  * Clase encargada de transformar el contenido Markdown en datos estructurados.
- * Incluye trazabilidad completa para depuración de errores intermitentes.
+ * Incluye validación de esquema y transformación de Markdown a HTML.
  */
 export class ResumeParser {
   
@@ -26,7 +26,7 @@ export class ResumeParser {
     console.log('[Parser] ⚙️ Iniciando parseo de contenido raw...');
     
     if (!content || content.trim() === '') {
-      console.warn('[Parser] ⚠️ El contenido recibido está vacío.');
+      throw new Error('El contenido del CV está vacío.');
     }
 
     try {
@@ -34,82 +34,60 @@ export class ResumeParser {
       console.log('[Parser] [Paso 1] Ejecutando gray-matter...');
       const { data, content: markdownBody } = matter(content);
       
-      console.log('[Parser] [Paso 1] Datos YAML extraídos:', JSON.stringify(data, null, 2));
-
-      // Cast a nuestra interfaz
-      const resume = data as Resume;
-
-      // 2. Procesar el Markdown del sumario profesional
-      if (resume.basics?.summary) {
-        console.log('[Parser] [Paso 2] Detectado summary. Procesando Markdown...');
-        const originalSummary = resume.basics.summary;
-        resume.basics.summary = await this.markdownToHtml(originalSummary);
-        console.log(`[Parser] [Paso 2] Summary transformado: "${resume.basics.summary.substring(0, 50)}..."`);
-      } else {
-        console.warn('[Parser] [Paso 2] No se encontró el campo basics.summary o está vacío.');
+      // 2. Validar esquema con Zod
+      console.log('[Parser] [Paso 2] Validando esquema de datos...');
+      const validation = ResumeSchema.safeParse(data);
+      
+      if (!validation.success) {
+        const errorMsg = validation.error.errors
+          .map(e => `${e.path.join('.')}: ${e.message}`)
+          .join(', ');
+        throw new Error(`Error de validación en el YAML: ${errorMsg}`);
       }
 
-      // 3. Procesar Markdown en los highlights de la experiencia
+      const resume = validation.data;
+
+      // 3. Procesar el Markdown del sumario profesional
+      if (resume.basics?.summary) {
+        console.log('[Parser] [Paso 3] Procesando Markdown del summary...');
+        resume.basics.summary = await this.markdownToHtml(resume.basics.summary);
+      }
+
+      // 4. Procesar Markdown en los highlights de la experiencia
       if (resume.work && Array.isArray(resume.work)) {
-        console.log(`[Parser] [Paso 3] Procesando ${resume.work.length} puestos de trabajo...`);
+        console.log(`[Parser] [Paso 4] Procesando ${resume.work.length} puestos de trabajo...`);
         
         for (let i = 0; i < resume.work.length; i++) {
           const job = resume.work[i];
-          console.log(`[Parser] [Paso 3.${i}] Empresa: ${job.company || 'Desconocida'}`);
-          
           if (job.highlights && Array.isArray(job.highlights)) {
-            console.log(`[Parser] [Paso 3.${i}] Procesando ${job.highlights.length} highlights...`);
-            
             job.highlights = await Promise.all(
-              job.highlights.map(async (h, idx) => {
-                const processed = await this.markdownToHtml(h);
-                // Log para detectar si un highlight sale vacío de repente
-                if (!processed) console.error(`[Parser] ‼️ Highlight ${idx} en ${job.company} quedó vacío tras procesar.`);
-                return processed;
-              })
+              job.highlights.map(async (h) => await this.markdownToHtml(h))
             );
-          } else {
-            console.log(`[Parser] [Paso 3.${i}] No hay highlights para esta empresa.`);
           }
         }
-      } else {
-        console.warn('[Parser] [Paso 3] No se encontró la sección "work" o no es un array.');
       }
 
-      console.log('[Parser] ✅ Parseo completado con éxito.');
+      console.log('[Parser] ✅ Parseo y validación completados con éxito.');
       return resume;
 
     } catch (error: any) {
-      console.error('[Parser] ❌ ERROR EN PARSERAW:', error);
-      // Imprimimos el stack trace para saber la línea exacta del fallo
-      console.error('[Parser] Stack Trace:', error.stack);
-      throw new Error(`Error en el formato YAML: ${error.message}`);
+      console.error('[Parser] ❌ ERROR EN PARSERAW:', error.message);
+      throw error;
     }
   }
 
   private async markdownToHtml(content: string): Promise<string> {
-    // 1. Si el contenido ya parece HTML (empieza por <p>), no lo procesamos
     if (content.trim().startsWith('<p>')) {
-      console.log('[Parser] ℹ️ El contenido ya es HTML, omitiendo procesado.');
       return content.trim();
     }
 
     try {
-      // 2. Limpieza de caracteres y escape de símbolos críticos
       const safeContent = content.replace(/<(\d)/g, '&lt;$1'); 
-      
       const processedContent = await remark()
         .use(html)
         .process(safeContent);
       
-      const result = processedContent.toString().trim();
-      
-      if (!result && content.length > 0) {
-        console.error('[Parser] ❌ Remark falló devolviendo vacío. Retornando texto original.');
-        return content; // No devolvemos vacío para no perder info
-      }
-      
-      return result;
+      return processedContent.toString().trim();
     } catch (err) {
       console.error('[Parser] Error en markdownToHtml:', err);
       return content;
