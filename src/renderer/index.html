@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: file:;">
+    <title>CV Designer - Editor</title>
+    <style>
+        body { display: flex; flex-direction: column; height: 100vh; margin: 0; font-family: 'Montserrat', sans-serif; background: #1e1e1e; color: white; overflow: hidden; }
+        .controls { padding: 12px 20px; background: #2d2d2d; display: flex; gap: 12px; align-items: center; border-bottom: 1px solid #3e3e3e; }
+        .app-container { display: flex; flex: 1; overflow: hidden; }
+        .editor-side { flex: 1; display: flex; flex-direction: column; padding: 15px; border-right: 1px solid #3c3c3c; }
+        .preview-side { flex: 1; display: flex; flex-direction: column; padding: 15px; background: #252526; }
+        
+        textarea { flex: 1; background: #1e1e1e; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; resize: none; outline: none; border-radius: 4px; }
+        
+        /* Consola de Errores */
+        #errorLog { 
+            height: 100px; margin-top: 10px; background: #2d1010; color: #ff8888; 
+            padding: 10px; font-family: monospace; font-size: 12px; border-radius: 4px; 
+            overflow-y: auto; display: none; border: 1px solid #551a1a;
+        }
+
+        iframe { flex: 1; background: white; border: none; border-radius: 4px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+        
+        button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
+        .btn-preview { background: #6c757d; color: white; }
+        .btn-save { background: #007acc; color: white; }
+        .btn-pdf { background: #28a745; color: white; }
+        .btn-open { background: #ffc107; color: #212529; display: none; }
+        #status { font-size: 12px; color: #adb5bd; margin-left: auto; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="btn-save" onclick="save()">Guardar cv.md</button>
+        <button class="btn-preview" onclick="updatePreview()">Actualizar Vista Previa</button>
+        <button class="btn-pdf" onclick="generate()">Generar PDF</button>
+        <button id="btnOpen" class="btn-open" onclick="openPdf()">Abrir PDF</button>
+        <span id="status">Listo</span>
+    </div>
+    <div class="app-container">
+        <div class="editor-side">
+            <textarea id="editor" placeholder="Escribe tu CV en Markdown aquí..."></textarea>
+            <div id="errorLog"></div>
+        </div>
+        <div class="preview-side">
+            <iframe id="preview"></iframe>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const status = document.getElementById('status');
+        const errorLog = document.getElementById('errorLog');
+
+        window.onload = async () => {
+            const content = await window.api.loadCV();
+            editor.value = content;
+            updatePreview();
+        };
+
+        async function updatePreview() {
+            status.innerText = "Procesando...";
+            errorLog.style.display = "none";
+            
+            const result = await window.api.renderPreview(editor.value);
+            
+            if (result.success) {
+                let html = result.html;
+                // Calculamos la ruta absoluta a la carpeta de plantillas
+                const baseDir = window.location.href.replace('src/renderer/index.html', '');
+                
+                // Inyectamos la etiqueta <base> para que el iframe encuentre styles.css
+                const headWithBase = `<head><base href="${baseDir}templates/">`;
+                html = html.replace('<head>', headWithBase);
+
+                // Corregimos la ruta de la imagen de perfil para que apunte a assets
+                html = html.replace(/src="profile\.(.*?)"/g, `src="${baseDir}assets/profile.$1"`);
+
+                // Inyectamos el HTML final en el iframe
+                preview.srcdoc = html;
+                status.innerText = "Vista previa actualizada";
+            } else {
+                status.innerText = "Error en el formato";
+                errorLog.innerText = "ERROR TÉCNICO:\n" + result.error;
+                errorLog.style.display = "block";
+                preview.srcdoc = "<html><body style='font-family:sans-serif; padding:20px; color:red;'><h3>Error de Formato</h3><p>Revisa el panel inferior.</p></body></html>";
+            }
+        }
+
+        async function save() {
+            status.innerText = "Guardando...";
+            await window.api.saveCV(editor.value);
+            status.innerText = "Archivo cv.md guardado";
+        }
+
+        async function generate() { 
+            status.innerText = "Generando PDF...";
+            try {
+                const path = await window.api.generatePDF();
+                window.lastPath = path;
+                document.getElementById('btnOpen').style.display = 'block';
+                status.innerText = "PDF creado exitosamente";
+            } catch (err) {
+                status.innerText = "Error al generar PDF";
+                console.error(err);
+            }
+        }
+
+        function openPdf() { window.api.openPDF(window.lastPath); }
+    </script>
+</body>
+</html>

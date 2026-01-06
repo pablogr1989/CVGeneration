@@ -7,79 +7,60 @@ import { PdfEngine } from './infra/pdfEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const projectRoot = path.resolve(__dirname, '..');
 
-async function main() {
+export async function getRenderedHtml(markdownContent?: string): Promise<string> {
   const parser = new ResumeParser();
-  const pdfEngine = new PdfEngine();
+  const templateDir = path.join(projectRoot, 'templates');
   
-  // Definición de rutas absolutas para evitar ambigüedad
-  const dataPath = path.join(__dirname, '../data/cv.md');
-  const assetsDir = path.join(__dirname, '../assets');
-  const templateDir = path.join(__dirname, '../templates');
-  const outputDir = path.join(__dirname, '../output');
+  // Leemos el contenido: o del editor o del archivo físico
+  const content = markdownContent || fs.readFileSync(path.join(projectRoot, 'data/cv.md'), 'utf-8');
+  const resumeData = await parser.parseRaw(content);
+  
+  // Dividimos el nombre (Pablo | Gómez Ramírez)
+  const fullName = resumeData.basics.name || "";
+  const nameParts = fullName.split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ") || "";
 
-  console.log('--- PROYECTO APP PRESUPUESTOS: GENERADOR DE CV ---');
+  // Detección de imagen
+  const assetsDir = path.join(projectRoot, 'assets');
+  const extensions = ['png', 'jpg', 'jpeg', 'webp'];
+  const found = extensions.find(ext => fs.existsSync(path.join(assetsDir, `profile.${ext}`)));
+  const profileImg = found ? `profile.${found}` : null;
 
-  // 1. Preparar carpeta de salida antes de procesar nada
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
-  // 2. Parsear datos del currículum
-  const resumeData = await parser.parse(dataPath);
-
-  // 3. Lógica robusta de imagen de perfil
-  const extensions = ['jpg', 'jpeg', 'png', 'webp'];
-  const foundExtension = extensions.find(ext => 
-    fs.existsSync(path.join(assetsDir, `profile.${ext}`))
-  );
-
-  let profileImgFilename: string | null = null;
-  if (foundExtension) {
-    profileImgFilename = `profile.${foundExtension}`;
-    // Copiamos la imagen al directorio de salida
-    fs.copyFileSync(
-      path.join(assetsDir, profileImgFilename), 
-      path.join(outputDir, profileImgFilename)
-    );
-    console.log(`> Imagen detectada y copiada: ${profileImgFilename}`);
-  } else {
-    console.warn('> Advertencia: No se encontró imagen de perfil en assets/');
-  }
-
-  // 4. Copiar estilos CSS (obligatorio para el diseño B2)
-  const cssPath = path.join(templateDir, 'styles.css');
-  if (fs.existsSync(cssPath)) {
-    fs.copyFileSync(cssPath, path.join(outputDir, 'styles.css'));
-  } else {
-    throw new Error('Archivo styles.css no encontrado en la carpeta de plantillas.');
-  }
-
-  // 5. Renderizar HTML con Handlebars
   const source = fs.readFileSync(path.join(templateDir, 'layout.hbs'), 'utf-8');
   const template = Handlebars.compile(source);
   
-  // Inyectamos los datos. Nota: profileImg es el nombre del fichero en la carpeta output.
-  const html = template({ 
+  return template({ 
     ...resumeData, 
-    profileImg: profileImgFilename 
+    firstName, 
+    lastName,
+    profileImg, 
+    isPreview: true 
   });
+}
 
+export async function runGeneration(): Promise<string> {
+  const pdfEngine = new PdfEngine();
+  const outputDir = path.join(projectRoot, 'output');
+  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+
+  const html = await getRenderedHtml();
   const htmlPath = path.join(outputDir, 'cv.html');
   const pdfPath = path.join(outputDir, 'cv.pdf');
 
-  fs.writeFileSync(htmlPath, html);
-  console.log('> HTML generado exitosamente.');
+  // Copia de activos necesarios
+  const assetsDir = path.join(projectRoot, 'assets');
+  const extensions = ['png', 'jpg', 'jpeg', 'webp'];
+  const found = extensions.find(ext => fs.existsSync(path.join(assetsDir, `profile.${ext}`)));
+  if (found) {
+    fs.copyFileSync(path.join(assetsDir, `profile.${found}`), path.join(outputDir, `profile.${found}`));
+  }
 
-  // 6. GENERACIÓN FINAL DEL PDF
-  // El motor ahora encontrará cv.html, styles.css y profile.xxx en la misma carpeta
+  fs.copyFileSync(path.join(projectRoot, 'templates/styles.css'), path.join(outputDir, 'styles.css'));
+  fs.writeFileSync(htmlPath, html, 'utf-8');
+  
   await pdfEngine.generate(htmlPath, pdfPath);
-
-  console.log('--- PROCESO FINALIZADO CON ÉXITO ---');
-  console.log(`Resultado: ${pdfPath}`);
+  return pdfPath;
 }
-
-main().catch((err) => {
-  console.error('Error crítico en el proceso de generación:', err);
-  process.exit(1);
-});

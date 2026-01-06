@@ -2,12 +2,14 @@
   "name": "cv-generator",
   "version": "1.0.0",
   "type": "module",
-  "description": "Generador de CV de Markdown a PDF de alta fidelidad",
-  "main": "dist/index.js",
+  "description": "Generador de CV de Markdown a PDF de alta fidelidad con Interfaz Electron",
+  "main": "dist/main.js",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "generate": "node dist/index.js",
+    "start": "electron .",
+    "electron:dev": "tsc && electron .",
     "install-runtime": "npx playwright install chromium"
   },
   "keywords": [],
@@ -22,6 +24,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "electron": "^28.0.0",
+    "electron-reload": "^2.0.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.7.0",
     "typescript": "^5.3.3"

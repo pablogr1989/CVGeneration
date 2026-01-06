@@ -8,3 +8,4 @@ logs
 npm-debug.log*
 output/
 *.code-workspace
+dist/
