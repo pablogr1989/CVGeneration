@@ -1,0 +1,29 @@
+{
+  "name": "cv-generator",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Generador de CV de Markdown a PDF de alta fidelidad",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "generate": "node dist/index.js",
+    "install-runtime": "npx playwright install chromium"
+  },
+  "keywords": [],
+  "author": "Pablo Gómez Ramírez",
+  "license": "MIT",
+  "dependencies": {
+    "gray-matter": "^4.0.3",
+    "handlebars": "^4.7.8",
+    "playwright": "^1.41.0",
+    "remark": "^15.0.1",
+    "remark-html": "^16.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3"
+  }
+}

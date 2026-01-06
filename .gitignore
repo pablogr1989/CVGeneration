@@ -1,0 +1,10 @@
+.env
+node_modules/
+generated_pdfs/
+documents/
+*.log
+*.bak
+logs
+npm-debug.log*
+output/
+*.code-workspace

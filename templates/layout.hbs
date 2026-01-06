@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <title>CV - {{basics.name}}</title>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <header class="sidebar-identity">
+                <div class="photo-container">
+                    <img src="{{profileImg}}" alt="Foto de {{basics.name}}">
+                </div>
+            </header>
+            
+            <div class="sidebar-content">
+                <div class="identity-text">
+                    <h1 class="first-name">Pablo</h1>
+                    <h1 class="last-name">Gómez Ramírez</h1>
+                    <h2 class="professional-label">{{basics.label}}</h2>
+                </div>
+                <section>
+                    <span class="sidebar-divider"></span>
+                    <h3>PERFIL PROFESIONAL</h3>
+                    <div class="sidebar-summary">
+                        {{{basics.summary}}}
+                    </div>
+                </section>
+                <section>
+                    <span class="sidebar-divider"></span>
+                    <h3>CONTACTO</h3>
+                    <div class="icon-text">
+                        <div style="padding-top: 2px; margin-right: 8px;">
+                            <svg width="15px" height="15px" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"> <path fill="#ffffff" d="M774.614-133.001q-124.076-9-236.691-61.077-112.615-52.077-203.384-142.846-90.384-89.769-141.961-202.691-51.577-112.923-60.577-236.999-2-23 11.5-37.692 13.5-14.693 36.5-14.693h142.46q18.154 0 31.731 10.885 13.577 10.885 19.73 28.423L398.845-675q2.385 11.385-1.5 24.154-3.884 12.769-10.654 18.769l-101.384 99.923q21.308 38.846 46.962 73.769 25.654 34.924 58.038 68.078 30.924 29.923 65.001 55.654 34.077 25.731 71.077 45.038l110.769-104.538q7.385-7.769 13.731-9.192t15.731.577l120.075 27.615q18.154 5 29.731 18.461 11.577 13.462 11.577 32.001v143.69q0 23-15.193 36.5-15.192 13.5-38.192 11.5Z"></path> </svg>
+                        </div>
+                        <p>{{basics.phone}}</p>
+                    </div>
+                    <div class="icon-text">
+                        <div style="padding-top: 2px; margin-right: 8px;">
+                            <svg width="15px" height="15px" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"> <path fill="#ffffff" d="M174.309-182.001q-37.033 0-63.67-26.638-26.638-26.637-26.638-63.67v-415.382q0-37.033 26.638-63.67 26.637-26.638 63.67-26.638h611.382q38.033 0 64.17 26.638 26.138 26.637 26.138 63.67v415.382q0 37.033-26.138 63.67-26.137 26.638-64.17 26.638H174.309ZM480-426.694l318-182.615L791.846-700 480-517 168.154-700 162-609.309l318 182.615Z"></path> </svg>
+                        </div>
+                        <p>{{basics.email}}</p>
+                    </div>
+                    <div class="icon-text">
+                        <div style="padding-top: 0px; margin-right: 8px;">
+                            <svg width="15px" height="15px" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960"> <path fill="#ffffff" d="M480.192-475.385q30.731 0 52.423-21.884t21.692-52.615q0-30.731-21.884-52.423t-52.615-21.692q-30.731 0-52.423 21.884T405.693-549.5q0 30.731 21.884 52.423t52.615 21.692ZM480-82.617Q314.026-219.57 234.052-333.208q-79.974-113.638-79.974-216.869 0-121.46 88.577-224.191Q331.231-876.999 479.5-876.999t237.345 102.731q89.077 102.731 89.077 224.191 0 103.231-79.461 216.423Q646.999-220.463 480-82.617Z"></path> </svg>
+                        </div>
+                        <p>{{basics.location}}</p>
+                    </div>
+                </section>
+
+                <section>
+                    <span class="sidebar-divider"></span>
+                    <h3>IDIOMAS</h3>
+                    {{#each languages}}
+                    <p><strong>{{language}}</strong> | {{fluency}}</p>
+                    {{/each}}
+                </section>
+
+                <section>
+                    <span class="sidebar-divider"></span>
+                    <h3>REDES</h3>
+                    <div class="social-links">
+                        <p><strong>LinkedIn:</strong><br><small>{{basics.linkedin}}</small></p>
+                        <p><strong>GitHub:</strong><br><small>{{basics.github}}</small></p>
+                        <p><strong>Web:</strong><br><small>{{basics.website}}</small></p>
+                    </div>
+                </section>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <section>
+                <h3 class="section-title">EXPERIENCIA LABORAL</h3>
+                {{#each work}}
+                <div class="experience-item">
+                    <div class="exp-role"><strong>{{position}}</strong></div>
+                    <div class="exp-company-info">
+                        <span class="exp-company">{{company}}</span> | <span class="exp-location">{{location}}</span>
+                    </div>
+                    <div class="exp-dates">{{startDate}} - {{endDate}}</div>
+                    <ul class="highlights">
+                        {{#each highlights}}
+                        <li>{{{this}}}</li>
+                        {{/each}}
+                    </ul>
+                </div>
+                {{/each}}
+            </section>
+
+            <section>
+                <h3 class="section-title">FORMACIÓN</h3>
+                {{#each education}}
+                <div class="education-item">
+                    <p class="edu-main"><strong>{{studyType}} en {{area}}</strong> | {{startDate}} - {{endDate}}, {{city}}</p>
+                    <p class="edu-inst">{{institution}}</p>
+                    <p class="edu-description">{{description}}</p>
+                </div>
+                {{/each}}
+            </section>
+
+            <section>
+                <h3 class="section-title">TECNOLOGÍAS</h3>
+                <div class="skills-grid">
+                    {{#each skills}}
+                    <div class="skill-category">
+                        <strong>{{category}}</strong>
+                        <p>{{#each keywords}}{{this}}{{#unless @last}}, {{/unless}}{{/each}}</p>
+                    </div>
+                    {{/each}}
+                </div>
+            </section>
+        </main>
+    </div>
+</body>
+</html>
