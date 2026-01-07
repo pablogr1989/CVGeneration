@@ -50,33 +50,50 @@ export async function getRenderedHtml(
 export async function runGeneration(
   markdownContent?: string, 
   templateName: string = 'classic',
-  basePath?: string
+  basePath?: string,
+  targetDir?: string
 ): Promise<string> {
   const pdfEngine = new PdfEngine();
   const root = basePath || path.resolve(__dirname, '..');
   
-  const outputDir = path.join(root, 'output');
-  if (!fs.existsSync(outputDir)) fs.mkdirSync(outputDir, { recursive: true });
+  // 1. Determinar el directorio base (elegido por el usuario o 'output' por defecto)
+  const baseOutputDir = targetDir || path.join(root, 'output');
+  
+  // 2. Generar nombre de la subcarpeta con marca de tiempo: CV_DD-MM-AAAA_HH-mm
+  const now = new Date();
+  const day = now.getDate().toString().padStart(2, '0');
+  const month = (now.getMonth() + 1).toString().padStart(2, '0');
+  const year = now.getFullYear();
+  const hours = now.getHours().toString().padStart(2, '0');
+  const minutes = now.getMinutes().toString().padStart(2, '0');
+  
+  const folderName = `CV_${day}-${month}-${year}_${hours}-${minutes}`;
+  const finalOutputDir = path.join(baseOutputDir, folderName);
+
+  // 3. Crear el directorio final
+  if (!fs.existsSync(finalOutputDir)) {
+    fs.mkdirSync(finalOutputDir, { recursive: true });
+  }
 
   const html = await getRenderedHtml(markdownContent, templateName, root);
-  const htmlPath = path.join(outputDir, 'cv.html');
-  const pdfPath = path.join(outputDir, 'cv.pdf');
+  const htmlPath = path.join(finalOutputDir, 'cv.html');
+  const pdfPath = path.join(finalOutputDir, 'cv.pdf');
 
+  // 4. Copiar recursos a la carpeta específica
   const assetsDir = path.join(root, 'assets');
   const extensions = ['png', 'jpg', 'jpeg', 'webp'];
   const found = extensions.find(ext => fs.existsSync(path.join(assetsDir, `profile.${ext}`)));
   if (found) {
-    fs.copyFileSync(path.join(assetsDir, `profile.${found}`), path.join(outputDir, `profile.${found}`));
+    fs.copyFileSync(path.join(assetsDir, `profile.${found}`), path.join(finalOutputDir, `profile.${found}`));
   }
 
   const cssSource = path.join(root, 'templates', templateName, 'styles.css');
   if (fs.existsSync(cssSource)) {
-    fs.copyFileSync(cssSource, path.join(outputDir, 'styles.css'));
+    fs.copyFileSync(cssSource, path.join(finalOutputDir, 'styles.css'));
   }
   
   fs.writeFileSync(htmlPath, html, 'utf-8');
   
-  // CAMBIO: Ahora pasamos root como basePath al engine para que busque Chromium
   await pdfEngine.generate(htmlPath, pdfPath, root);
   return pdfPath;
 }

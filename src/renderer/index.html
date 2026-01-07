@@ -22,10 +22,8 @@
         select { background: #3e3e3e; color: white; outline: none; }
         .btn-save { background: #007acc; color: white; }
         .btn-pdf { background: #28a745; color: white; }
-        .btn-open { background: #ffc107; color: #212529; display: none; }
-        #status { font-size: 12px; color: #adb5bd; margin-left: auto; padding: 4px 8px; border-radius: 3px; }
-        .status-ok { background: #1e4620; color: #a5d6a7 !important; }
-        .status-error { background: #4e1d1d; color: #ef9a9a !important; }
+        .btn-open { background: #ffc107; color: #212529; display: none; margin-left: 10px; }
+        #status { font-size: 12px; color: #adb5bd; margin-left: auto; padding: 4px 8px; border-radius: 3px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -37,7 +35,7 @@
         <button class="btn-save" onclick="save()">Guardar</button>
         <button class="btn-pdf" onclick="generate()">Generar PDF</button>
         <button id="btnOpen" class="btn-open" onclick="openPdf()">Abrir PDF</button>
-        <span id="status">Iniciando...</span>
+        <span id="status">Listo</span>
     </div>
     <div class="app-container">
         <div class="editor-side">
@@ -69,9 +67,8 @@
                 const content = await window.api.loadCV();
                 editor.value = content;
                 updatePreview();
-                status.innerText = "Listo";
             } catch (e) {
-                window.api.sendLog('ERROR', 'Error cargando datos iniciales', { error: e.message });
+                window.api.sendLog('ERROR', 'Error inicial', { error: e.message });
             }
         };
 
@@ -80,22 +77,18 @@
         async function updatePreview() {
             const template = templateSelect.value;
             const result = await window.api.renderPreview(editor.value, template);
-            
             if (result.success) {
                 let html = result.html;
-                let currentUrl = window.location.href;
-                let resourceBase = currentUrl.includes('app.asar') 
-                    ? currentUrl.split('app.asar')[0] 
-                    : currentUrl.replace('src/renderer/index.html', '');
-
-                const headWithBase = `<head><base href="${resourceBase}templates/${template}/">`;
-                html = html.replace('<head>', headWithBase);
+                const resourceBase = window.location.href.includes('app.asar') 
+                    ? window.location.href.split('app.asar')[0] 
+                    : window.location.href.replace('src/renderer/index.html', '');
+                html = html.replace('<head>', `<head><base href="${resourceBase}templates/${template}/">`);
                 html = html.replace(/src="profile\.(.*?)"/g, `src="${resourceBase}assets/profile.$1"`);
-
                 preview.srcdoc = html;
-                status.innerText = "✅ Actualizado";
+                errorLog.style.display = "none";
+                status.innerText = "✅ Preview actualizado";
             } else {
-                status.innerText = "❌ Error";
+                status.innerText = "❌ Error de validación";
                 errorLog.innerText = result.error;
                 errorLog.style.display = "block";
             }
@@ -103,34 +96,39 @@
 
         async function save() {
             await window.api.saveCV(editor.value);
-            status.innerText = "Guardado";
+            status.innerText = "✅ Guardado correctamente";
         }
 
         async function generate() {
-            status.innerText = "Generando...";
+            status.innerText = "Seleccionando ubicación...";
+            
+            // 1. Abrir diálogo de selección
+            const targetDir = await window.api.selectDirectory();
+            if (!targetDir) {
+                status.innerText = "Generación cancelada";
+                return;
+            }
+
+            status.innerText = "Generando archivos...";
             try {
                 const template = templateSelect.value;
-                const path = await window.api.generatePDF(editor.value, template);
-                window.lastPath = path;
-                document.getElementById('btnOpen').style.display = 'block';
-                status.innerText = "PDF Generado";
+                // 2. Generar en la ubicación (la subcarpeta se crea internamente en index.ts)
+                const finalPath = await window.api.generatePDF(editor.value, template, targetDir);
+                window.lastPath = finalPath;
+                document.getElementById('btnOpen').style.display = 'inline-block';
+                status.innerText = "✅ PDF listo en: " + finalPath;
             } catch (e) {
                 window.api.sendLog('ERROR', 'Fallo al generar PDF', { error: e.message });
-                status.innerText = "Error PDF";
+                status.innerText = "❌ Error en generación";
+                errorLog.innerText = e.message;
+                errorLog.style.display = "block";
             }
         }
 
-        // MEJORA: Función asíncrona para capturar errores de apertura
         async function openPdf() { 
-            if (!window.lastPath) {
-                status.innerText = "Ruta no encontrada";
-                return;
-            }
-            const error = await window.api.openPDF(window.lastPath); 
-            if (error) {
-                window.api.sendLog('ERROR', 'No se pudo abrir el PDF', { error, path: window.lastPath });
-                status.innerText = "Error al abrir";
-                alert("No se pudo abrir el PDF: " + error);
+            if (window.lastPath) {
+                const error = await window.api.openPDF(window.lastPath); 
+                if (error) alert("No se pudo abrir: " + error);
             }
         }
     </script>

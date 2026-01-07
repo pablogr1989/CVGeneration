@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, ipcMain, shell, dialog } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -61,28 +61,31 @@ ipcMain.on('log-from-renderer', (event, { level, message, data }) => {
 ipcMain.handle('load-cv', () => fs.readFileSync(cvPath, 'utf-8'));
 ipcMain.handle('save-cv', (_, content) => fs.writeFileSync(cvPath, content, 'utf-8'));
 
-ipcMain.handle('generate-pdf', (_, content, templateName) => {
-  return runGeneration(content, templateName, externalPath);
+// Nuevo: Manejador para seleccionar carpeta de destino
+ipcMain.handle('select-directory', async () => {
+  const result = await dialog.showOpenDialog({
+    title: 'Selecciona la carpeta donde guardar el CV',
+    properties: ['openDirectory', 'createDirectory']
+  });
+  if (result.canceled) return null;
+  return result.filePaths[0];
 });
 
-// MEJORA: Manejador de apertura de PDF con Logging detallado
+// Actualizado: Ahora acepta targetDir
+ipcMain.handle('generate-pdf', (_, content, templateName, targetDir) => {
+  return runGeneration(content, templateName, externalPath, targetDir);
+});
+
 ipcMain.handle('open-pdf', async (_, p) => {
   logger.info('Solicitud de apertura de PDF:', p);
-  
   if (!p || !fs.existsSync(p)) {
-    const errorMsg = `La ruta del archivo no es válida o el archivo no existe: ${p}`;
+    const errorMsg = `La ruta no es válida o el archivo no existe: ${p}`;
     logger.error(errorMsg);
     return errorMsg;
   }
-
   try {
     const result = await shell.openPath(p);
-    if (result) {
-      logger.error('Shell.openPath devolvió un error:', result);
-      return result;
-    }
-    logger.info('PDF abierto correctamente por el sistema operativo.');
-    return '';
+    return result || '';
   } catch (err: any) {
     logger.error('Excepción al intentar abrir el PDF:', err.message);
     return err.message;
