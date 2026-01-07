@@ -9,6 +9,7 @@
 - **Motor de Renderizado Profesional:** Uso de Playwright (Chromium) para generar archivos PDF en formato A4 con soporte completo para estilos CSS complejos.
 - **Previsualización en Tiempo Real:** Capacidad de visualizar los cambios en el diseño antes de exportar el documento final.
 - **Arquitectura Limpia:** Código organizado en capas (Core, Infra, Types, Renderer) para facilitar la mantenibilidad y escalabilidad.
+- **Exportación Organizada**: Al generar un PDF, el sistema solicita una ubicación y crea automáticamente una subcarpeta con marca de tiempo (`CV_DD-MM-AAAA_HH-mm`), manteniendo un historial ordenado de tus versiones.
 
 ## 🛠️ Stack Tecnológico
 
